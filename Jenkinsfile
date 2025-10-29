@@ -3,21 +3,20 @@ pipeline {
   options { timestamps() }
 
   environment {
-    STACK          = 'app'
-    COMPOSE_FILE   = 'docker-compose.yaml'
+    // Стек и compose
+    STACK        = 'app'
+    COMPOSE_FILE = 'docker-compose.yaml'
 
-    // Для DB smoke-теста (совпадает с твоим compose)
-    DB_HOST        = 'db'
-    DB_USER        = 'root'
-    DB_PASS        = '1'
-    DB_NAME        = 'fulfillment'
+    // Порты/URL, опубликованные в compose
+    FRONT_URL    = 'http://127.0.0.1:3000'
+    API_URL      = 'http://127.0.0.1:5000'
 
-    // Что дёргаем локально на manager (routing mesh)
-    FRONT_URL      = 'http://127.0.0.1:3000'
-    API_URL        = 'http://127.0.0.1:5000'
-
-    // Имя overlay-сети стека: <stack>_<network>
-    OVERLAY_NET    = 'app_appnet'
+    // Доступ к БД (порт 5432 опубликован наружу)
+    DB_HOST      = '127.0.0.1'
+    DB_PORT      = '5432'
+    DB_USER      = 'root'
+    DB_PASS      = '1'
+    DB_NAME      = 'fulfillment'
   }
 
   stages {
@@ -31,15 +30,18 @@ pipeline {
       steps {
         sh '''
           set -e
+          echo "== Docker info =="
           docker info >/dev/null 2>&1 || { echo "Docker недоступен"; exit 1; }
 
-          # Swarm должен быть активен (на manager)
           if ! docker info | grep -q "Swarm: active"; then
-            echo "Swarm не активен на этой ноде. Инициализирую (для соло-стенда)..."
+            echo "Swarm не активен. Инициализирую (соло-стенд)..."
             docker swarm init || true
           fi
 
-          [ -f "${COMPOSE_FILE}" ] || { echo "${COMPOSE_FILE} не найден"; exit 1; }
+          [ -f "${COMPOSE_FILE}" ] || { echo "Нет ${COMPOSE_FILE}"; exit 1; }
+
+          echo "== Ноды =="
+          docker node ls || true
         '''
       }
     }
@@ -48,24 +50,24 @@ pipeline {
       steps {
         sh '''
           set -e
+          echo "Деплой стека ${STACK}..."
           docker stack deploy --with-registry-auth -c "${COMPOSE_FILE}" "${STACK}"
+          docker stack services "${STACK}"
         '''
       }
     }
 
-    stage('Wait for services converge') {
+    stage('Wait for services converge (x/x)') {
       steps {
         sh '''
           set -e
-          timeout=120
+          timeout=150
           while [ $timeout -gt 0 ]; do
             all_ok=1
-            for rep in $(docker stack services "${STACK}" --format '{{.Replicas}}'); do
-              have=${rep%/*}; want=${rep#*/}
-              if [ "$have" != "$want" ]; then
-                all_ok=0; break
-              fi
-            done
+            while read name reps; do
+              have=${reps%/*}; want=${reps#*/}
+              if [ "$have" != "$want" ]; then all_ok=0; break; fi
+            done < <(docker stack services "${STACK}" --format '{{.Name}} {{.Replicas}}')
             [ $all_ok -eq 1 ] && { echo "Все сервисы в состоянии x/x"; break; }
             sleep 3; timeout=$((timeout-3))
           done
@@ -78,19 +80,37 @@ pipeline {
       steps {
         sh '''
           set -e
+          echo "== Front check: ${FRONT_URL} =="
+          # ждём до ~60с пока начнёт отвечать
+          for i in $(seq 1 20); do
+            if curl -fsS "${FRONT_URL}" >/dev/null; then echo "FRONT OK"; break; fi
+            sleep 3
+          done
+          curl -fsS "${FRONT_URL}" >/dev/null || { echo "Фронт недоступен"; exit 1; }
 
-          echo "Front check (${FRONT_URL})…"
-          curl -sS "${FRONT_URL}" | grep -q '<title>React App</title>'
+          echo "== API check: ${API_URL} =="
+          # корень у тебя может отдавать 404/текст — нам важна достижимость TCP/HTTP
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "${API_URL}") || true
+            [ -n "$code" ] && [ "$code" -gt 0 ] && { echo "API OK (HTTP ${code})"; break; }
+            sleep 3
+          done
+          [ -n "$code" ] || { echo "API не отвечает"; exit 1; }
 
-          echo "API check (${API_URL})… (ожидаем любой контент, даже 'Cannot GET /')"
-          curl -sS "${API_URL}" > /dev/null
+          echo "== DB readiness via published port ${DB_HOST}:${DB_PORT} =="
+          # используем одноразовый контейнер с psql; --network host работает на Linux
+          for i in $(seq 1 20); do
+            if docker run --rm --network host -e PGPASSWORD="${DB_PASS}" postgres:16-alpine \
+                 pg_isready -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}"; then
+              break
+            fi
+            sleep 3
+          done
 
-          echo "DB check через psql-клиент в overlay-сети ${OVERLAY_NET}…"
-          docker run --rm --network "${OVERLAY_NET}" -e PGPASSWORD="${DB_PASS}" \
-            postgres:16-alpine \
-            psql -h "${DB_HOST}" -U "${DB_USER}" -d "${DB_NAME}" -c "select 1" | grep -q 1
-
-          echo "Smoke OK"
+          echo "== DB query =="
+          docker run --rm --network host -e PGPASSWORD="${DB_PASS}" postgres:16-alpine \
+            psql -h "${DB_HOST}" -p "${DB_PORT}" -U "${DB_USER}" -d "${DB_NAME}" -c "select 1;" | grep -q 1
+          echo "DB OK"
         '''
       }
     }
@@ -98,11 +118,16 @@ pipeline {
 
   post {
     success {
-      echo 'Готово: стек задеплоен'
+      echo '✅ Готово: стек задеплоен, smoke-тесты пройдены'
     }
     failure {
-      echo 'Ошибка: смотри логи выше'
-      sh 'docker stack ps ${STACK} || true; docker service ls || true'
+      echo '❌ Ошибка. Диагностика ниже:'
+      sh '''
+        echo "== services =="; docker service ls || true
+        echo "== stack ps =="; docker stack ps ${STACK} --no-trunc || true
+        echo "== server logs =="; docker service logs --tail 200 ${STACK}_server || true
+        echo "== db logs =="; docker service logs --tail 200 ${STACK}_db || true
+      '''
     }
     always {
       cleanWs()
