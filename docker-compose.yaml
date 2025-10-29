@@ -41,6 +41,8 @@ services:
 
   client:
     image: maximka512/client
+    # ВАЖНО: слушаем на 0.0.0.0:3000, иначе overlay не достучится
+    command: ["npx","serve","-s","build","-l","tcp://0.0.0.0:3000"]
     environment:
       REACT_APP_API_URL: "http://server:5000/"
     ports:
