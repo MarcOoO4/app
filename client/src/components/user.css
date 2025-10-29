@@ -1,0 +1,14 @@
+.fixed-width-table2 {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.fixed-width-table2 th, .fixed-width-table2 td {
+    border: 1px solid black;
+    padding: 5px;
+}
+
+.fixed-width-table2 th {
+    width: auto;
+}

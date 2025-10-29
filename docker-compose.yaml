@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  db:
+    image: maximka512/bd
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: "1"
+      POSTGRES_DB: fulfillment
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    networks:
+      - appnet
+
+  server:
+    image: maximka512/server
+    environment:
+      PORT: 5000
+      DB_NAME: fulfillment
+      DB_USER: root
+      DB_PASSWORD: "1"
+      DB_HOST: db
+      DB_PORT: 5432
+      SECRET_KEY: random_secret_key123
+    ports:
+      - "5000:5000"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    depends_on:
+      - db
+    networks:
+      - appnet
+
+  client:
+    image: maximka512/client
+    environment:
+      REACT_APP_API_URL: "http://server:5000/"
+    ports:
+      - "3000:3000"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+    depends_on:
+      - server
+    networks:
+      - appnet
+
+volumes:
+  db_data:
+
+networks:
+  appnet:
+    driver: overlay

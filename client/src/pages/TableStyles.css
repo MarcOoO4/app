@@ -1,0 +1,373 @@
+/*!* Table Styles *!*/
+
+/*.table-wrapper{*/
+/*    margin: 10px 70px 70px;*/
+/*    box-shadow: 0px 35px 50px rgba( 0, 0, 0, 0.2 );*/
+/*}*/
+
+/*.fl-table {*/
+/*    border-radius: 5px;*/
+/*    font-size: 15px;*/
+/*    font-weight: normal;*/
+/*    border: none;*/
+/*    border-collapse: collapse;*/
+/*    width: 100%;*/
+/*    max-width: 100%;*/
+/*    white-space: nowrap;*/
+/*    background-color: white;*/
+/*}*/
+
+/*.fl-table td, .fl-table th {*/
+/*    text-align: center;*/
+/*    padding: 8px;*/
+/*}*/
+
+/*.fl-table td {*/
+/*    border-right: 1px solid #f8f8f8;*/
+/*    font-size: 15px;*/
+/*}*/
+
+/*.fl-table thead th {*/
+/*    color: #ffffff;*/
+/*    background: #4FC3A1;*/
+/*}*/
+
+
+/*.fl-table thead th:nth-child(odd) {*/
+/*    color: #ffffff;*/
+/*    background: #324960;*/
+/*}*/
+
+/*.fl-table tr:nth-child(even) {*/
+/*    background: #F8F8F8;*/
+/*}*/
+
+/*!* Responsive *!*/
+
+/*@media (max-width: 767px) {*/
+/*    .fl-table {*/
+/*        display: block;*/
+/*        width: 100%;*/
+/*    }*/
+/*    .table-wrapper:before{*/
+/*        content: "Scroll horizontally >";*/
+/*        display: block;*/
+/*        text-align: right;*/
+/*        font-size: 11px;*/
+/*        color: white;*/
+/*        padding: 0 0 10px;*/
+/*    }*/
+/*    .fl-table thead, .fl-table tbody, .fl-table thead th {*/
+/*        display: block;*/
+/*    }*/
+/*    .fl-table thead th:last-child{*/
+/*        border-bottom: none;*/
+/*    }*/
+/*    .fl-table thead {*/
+/*        float: left;*/
+/*    }*/
+/*    .fl-table tbody {*/
+/*        width: auto;*/
+/*        position: relative;*/
+/*        overflow-x: auto;*/
+/*    }*/
+/*    .fl-table td, .fl-table th {*/
+/*        padding: 20px .625em .625em .625em;*/
+/*        height: 60px;*/
+/*        vertical-align: middle;*/
+/*        box-sizing: border-box;*/
+/*        overflow-x: hidden;*/
+/*        overflow-y: auto;*/
+/*        width: 120px;*/
+/*        font-size: 13px;*/
+/*        text-overflow: ellipsis;*/
+/*    }*/
+/*    .fl-table thead th {*/
+/*        text-align: left;*/
+/*        border-bottom: 1px solid #f7f7f9;*/
+/*    }*/
+/*    .fl-table tbody tr {*/
+/*        display: table-cell;*/
+/*    }*/
+/*    .fl-table tbody tr:nth-child(odd) {*/
+/*        background: none;*/
+/*    }*/
+/*    .fl-table tr:nth-child(even) {*/
+/*        background: transparent;*/
+/*    }*/
+/*    .fl-table tr td:nth-child(odd) {*/
+/*        background: #F8F8F8;*/
+/*        border-right: 1px solid #E6E4E4;*/
+/*    }*/
+/*    .fl-table tr td:nth-child(even) {*/
+/*        border-right: 1px solid #E6E4E4;*/
+/*    }*/
+/*    .fl-table tbody td {*/
+/*        display: block;*/
+/*        text-align: center;*/
+/*    }*/
+/*}*/
+
+.button {
+    display: inline-block;
+    padding: 15px 30px;
+    font-size: 20px;
+    color: white;
+    background-color: #007BFF;
+    text-decoration: none;
+    border-radius: 10px;
+    transition: background-color 0.3s;
+    margin-top: 20px;
+}
+
+.button:hover {
+    background-color: #0056b3;
+}
+
+.container-calculator {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 200px;
+    text-align: center;
+}
+
+.steps-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* 3 столбца равной ширины */
+    grid-auto-rows: auto; /* Авто-высота строк */
+    gap: 20px; /* Отступ между элементами */
+    padding: 30px; /* Отступы от краев страницы */
+}
+
+.step {
+    display: flex;
+    padding: 20px; /* Отступы внутри каждого этапа */
+}
+
+.step-number {
+    flex-shrink: 0; /* Предотвращает сжатие номера */
+    width: 50px;
+    height: 50px;
+    border-radius: 50%; /* Для круглого фона */
+    background-color: #007bff; /* Цвет фона номера */
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+    font-size: 20px;
+}
+
+.step-content {
+    padding-left: 10px; /* Отступ слева для контента */
+}
+
+.step-title {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.step-description {
+    font-size: 15px;
+    line-height: 1.4;
+}
+
+
+.grid-container {
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 50px; /* Промежуток между колонками */
+    justify-content: center;
+    align-items: center;
+
+}
+
+.column1, .column2 {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+
+}
+
+/* Определяем стили для изображений */
+.ImageQr {
+    width: 150px; /* Ширина 300 пикселей */
+    height: 150px; /* Высота 200 пикселей */
+}
+
+/* Медиа-запрос для адаптивного дизайна */
+@media (max-width: 768px) {
+    .grid-container {
+        grid-template-columns: auto; /* Одна колонка на мобильных устройствах */
+    }
+}
+
+/* ------------------- Calc ------------------- */
+
+.heading {
+    margin-bottom: 20px;
+    text-align: center;
+    padding: 30px;
+}
+
+.heading-title {
+    font-size: 40px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: 0.48px;
+    text-align: center;
+}
+
+.heading-desc {
+    font-size: 25px;
+    text-align: center;
+}
+
+.calc-section {
+    padding: 25px 50px 15px;
+    background-color: #f4f8fa;
+}
+
+.calc-section:nth-child(odd) {
+    padding: 20px 50px 10px;
+    background-color: #fff;
+}
+
+.calc-title-light {
+    font-size: 24px;
+    font-weight: 300;
+    margin-bottom: 10px;
+}
+
+.title__inline {
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.title__inline + .title__inline {
+    margin-left: 10px;
+}
+
+.input-short {
+    width: 20px;
+}
+
+.radio-wrapper {
+    display: flex;
+}
+
+.radio-wrapper .radio {
+    margin-top: 9px;
+}
+
+.radio-wrapper:not(:last-child) {
+    margin-bottom: 30px;
+}
+
+.radio-wrapper .radio {
+    margin-right: 15px;
+    margin-top: 6px;
+}
+
+.input-short {
+    width: 90px;
+    height: 36px;
+    border-radius: 4px;
+    border: 1px solid #9a9a9a;
+    font-size: 24px;
+    font-weight: 700;
+    color: #039be5;
+    text-align: center;
+}
+
+.input-wrapper .input-short:first-child {
+    margin-right: 20px;
+}
+
+.input-wrapper .input-short:last-child {
+    margin-left: 20px;
+}
+
+/* ------------ TYPO ------------ */
+
+.section-title {
+    margin-bottom: 5px;
+}
+
+.section-title--vertical-center {
+    align-items: center;
+}
+
+.title-bold {
+    font-size: 20px;
+    font-weight: 700;
+}
+
+.title-lite {
+    font-size: 18px;
+    font-weight: 300;
+}
+
+.note {
+    display: block;
+    font-weight: 300;
+    font-style: italic;
+    padding-top: 10px;
+    font-size: 16px;
+    color: #969696;
+}
+
+/* ------------ FORMS ------------ */
+
+.checkbox-wrapper {
+    display: flex;
+    margin-bottom: 15px;
+}
+
+.checkbox-wrapper .checkbox {
+    margin-right: 15px;
+}
+
+/* ------------ PRICE ------------ */
+.calc-price {
+    position: fixed;
+    padding: 30px 50px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgb(218, 243, 255);
+    box-shadow: -10px 0 25px rgba(143, 179, 195, 0.685);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.calc-price-title {
+    font-size: 25px;
+    font-weight: 700;
+    margin-right: 20px;
+}
+
+.calc-price-value {
+    font-size: 25px;
+    font-weight: 300;
+}
+
+.create-order-btn {
+    margin-left: auto;
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.hidden {
+    display: none;
+}

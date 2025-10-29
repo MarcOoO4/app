@@ -1,0 +1,12 @@
+.fixed-width-table-service {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.fixed-width-table-service th, .fixed-width-table-service td {
+    border: 1px solid black;
+    padding: 5px;
+    width: 10%;
+}
+
