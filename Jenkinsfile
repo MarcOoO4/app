@@ -60,7 +60,7 @@ pipeline {
       steps {
         script {
           echo 'Ожидание запуска сервисов...'
-          sleep time: 30, unit: 'SECONDS'
+          sleep time: 15, unit: 'SECONDS'
 
           echo 'Проверка доступности фронта (через overlay)...'
           sh """
