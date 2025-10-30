@@ -9,7 +9,7 @@ services:
       POSTGRES_DB: fulfillment
       PGDATA: /var/lib/postgresql/seeddata
     ports:
-      - "5433:5432"
+      - "5433:5433"
     deploy:
       replicas: 1
       restart_policy:
