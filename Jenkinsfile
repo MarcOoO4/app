@@ -7,14 +7,12 @@ pipeline {
   }
 
   environment {
-    SWARM_STACK_NAME = 'app'           // имя стека из docker-compose
-    OVERLAY_NET      = 'app_appnet'    // <stack>_<net> из compose
-    // БД
+    SWARM_STACK_NAME = 'app'
+    OVERLAY_NET      = 'app_appnet'
     DB_SERVICE   = 'db'
     DB_USER      = 'root'
     DB_PASSWORD  = '1'
     DB_NAME      = 'fulfillment'
-    // Фронт (как в методичке), но мы дергаем его внутри overlay-сети
     FRONTEND_URL = 'http://192.168.0.1:3000'
   }
 
@@ -25,7 +23,6 @@ pipeline {
       }
     }
 
-    // Аналог "Build Docker Images" из методички; безопасно скипается, если Dockerfile-ов нет
     stage('Build Docker Images (optional)') {
       steps {
         script {
@@ -40,8 +37,6 @@ pipeline {
           } else {
             echo 'client.Dockerfile not found — skip build'
           }
-
-          // БД у тебя на postgres: образ не собираем (как в методичке mysql — тут не нужен)
         }
       }
     }
@@ -54,9 +49,7 @@ pipeline {
             if ! docker info | grep -q "Swarm: active"; then
               docker swarm init || true
             fi
-
             [ -f docker-compose.yaml ] || { echo "docker-compose.yaml not found"; exit 1; }
-
             docker stack deploy --with-registry-auth -c docker-compose.yaml ${SWARM_STACK_NAME}
           '''
         }

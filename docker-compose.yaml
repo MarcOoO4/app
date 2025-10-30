@@ -2,15 +2,14 @@ version: "3.9"
 
 services:
   db:
-    image: maximka512/bd
+    image: maximka512/bd:preloaded-16d
     environment:
       POSTGRES_USER: root
       POSTGRES_PASSWORD: "1"
       POSTGRES_DB: fulfillment
+      PGDATA: /var/lib/postgresql/seeddata
     ports:
       - "5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
     deploy:
       replicas: 1
       restart_policy:
@@ -30,36 +29,57 @@ services:
       SECRET_KEY: random_secret_key123
     ports:
       - "5000:5000"
+    depends_on:
+      - db
     deploy:
       replicas: 1
       restart_policy:
         condition: any
-    depends_on:
-      - db
     networks:
       - appnet
 
   client:
     image: maximka512/client
-    # ВАЖНО: слушаем на 0.0.0.0:3000, иначе overlay не достучится
-    command: ["npx","serve","-s","build","-l","tcp://0.0.0.0:3000"]
     environment:
       REACT_APP_API_URL: "http://server:5000/"
     ports:
       - "3000:3000"
+    depends_on:
+      - server
     deploy:
       replicas: 1
       restart_policy:
         condition: any
+    networks:
+      - appnet
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "8888:80"
+    user: "5050:5050"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
     depends_on:
-      - server
+      - db
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      placement:
+        constraints:
+          - node.role == manager
     networks:
       - appnet
 
 volumes:
   db_data:
+  pgadmin_data:
 
 networks:
   appnet:
-    driver: overlay
-    attachable: true
+    external: true
+    name: app_appnet
