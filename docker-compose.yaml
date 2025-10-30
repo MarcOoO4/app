@@ -8,9 +8,8 @@ services:
       POSTGRES_PASSWORD: "1"
       POSTGRES_DB: fulfillment
       PGDATA: /var/lib/postgresql/seeddata
-    command: ["postgres", "-p", "5433"]
     ports:
-      - "5433:5433"
+      - "5432:5432"
     deploy:
       replicas: 1
       restart_policy:
