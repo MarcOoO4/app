@@ -9,11 +9,11 @@ pipeline {
   environment {
     SWARM_STACK_NAME = 'app'
     OVERLAY_NET      = 'app_appnet'
-    DB_SERVICE   = 'db'
-    DB_USER      = 'root'
-    DB_PASSWORD  = '1'
-    DB_NAME      = 'fulfillment'
-    FRONTEND_URL = 'http://192.168.0.1:3000'
+    DB_SERVICE       = 'db'
+    DB_USER          = 'root'
+    DB_PASSWORD      = '1'
+    DB_NAME          = 'fulfillment'
+    FRONTEND_URL     = 'http://192.168.0.1:3000'
   }
 
   stages {
@@ -62,12 +62,15 @@ pipeline {
           echo 'Ожидание запуска сервисов...'
           sleep time: 15, unit: 'SECONDS'
 
-          echo 'Проверка доступности фронта (через overlay)...'
+          echo '--- Проверка, доступен ли PostgreSQL на порту 5432 ---'
           sh """
-            docker run --rm --network ${OVERLAY_NET} curlimages/curl:8.11.0 -fsS ${FRONTEND_URL} >/dev/null
+            docker run --rm --network ${OVERLAY_NET} postgres:15-alpine \
+              sh -c 'pg_isready -h ${DB_SERVICE} -p 5432 -U ${DB_USER}' \
+              && echo '✅ PostgreSQL доступен на порту 5432' \
+              || echo '❌ PostgreSQL недоступен на порту 5432 (возможно, порт изменён)'
           """
 
-          echo 'Проверка БД (Postgres) — простая команда SELECT 1 через overlay...'
+          echo '--- Проверка БД (Postgres) — простая команда SELECT 1 ---'
           sh """
             docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
               psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT 1;'
@@ -79,10 +82,10 @@ pipeline {
 
   post {
     success {
-      echo 'Все этапы завершены'
+      echo '✅ Все этапы завершены успешно'
     }
     failure {
-      echo 'Ошибка в одном из этапов. Проверь логи выше'
+      echo '❌ Ошибка в одном из этапов. Проверь логи выше.'
     }
     always {
       sh '''
