@@ -3,23 +3,28 @@ pipeline {
 
   environment {
     SWARM_STACK_NAME = 'app'
-    // В Compose сеть называется "appnet", в Swarm имя будет "<stack>_<net>"
+    // Compose-сеть называется "appnet", в Swarm она будет "<stack>_<net>"
     OVERLAY_NET      = 'app_appnet'
 
-    // Имена сервисов в стеке
+    // Имена сервисов в стеке (как в docker-compose.yaml)
     FRONT_SERVICE    = 'client'
     API_SERVICE      = 'server'
     DB_SERVICE       = 'db'
 
-    // БД
+    // Параметры БД
     DB_USER          = 'root'
     DB_PASSWORD      = '1'
     DB_NAME          = 'fulfillment'
+
+    // Тайминги для ожиданий/ретраев
+    CONVERGE_MAX_ITERS = '60'   // 60 * 5с ~ 5 минут
+    CURL_RETRIES       = '60'   // 60 * 2с ~ 2 минуты
   }
 
   options { timestamps() }
 
   stages {
+
     stage('Checkout') {
       steps { checkout scm }
     }
@@ -28,17 +33,19 @@ pipeline {
       steps {
         sh '''
           set -e
-          echo "== Docker info =="
-          docker info | sed -n '1,40p'
+          echo "== Docker info (head) =="
+          docker info | sed -n '1,50p' || true
 
-          # Убедимся, что Swarm активен (если нет — инициализируем на менеджере)
+          # Убедимся, что Swarm активен (если нет — инициируем)
           if ! docker info | grep -q "Swarm: active"; then
+            echo "Swarm inactive -> docker swarm init"
             docker swarm init || true
           fi
 
+          # Стековый compose должен лежать в корне репо
           [ -f docker-compose.yaml ] || { echo "docker-compose.yaml not found"; exit 1; }
 
-          echo "== Nodes =="
+          echo "== Swarm nodes =="
           docker node ls
         '''
       }
@@ -50,6 +57,7 @@ pipeline {
           set -e
           echo "Deploy stack ${SWARM_STACK_NAME}..."
           docker stack deploy --with-registry-auth -c docker-compose.yaml ${SWARM_STACK_NAME}
+          echo "== Stack services =="
           docker stack services ${SWARM_STACK_NAME}
         '''
       }
@@ -57,14 +65,13 @@ pipeline {
 
     stage('Wait for services converge (x/x)') {
       steps {
-        // Чистый POSIX sh без bash-измов
         sh '''
           set -e
           i=0
-          max=60       # 60 итераций * 5с = ~5 минут
+          max=${CONVERGE_MAX_ITERS}
           sleep_s=5
+
           while [ "$i" -lt "$max" ]; do
-            # сколько сервисов ещё не в состоянии x/x
             not_ready=$(docker service ls --format '{{.Replicas}}' \
               | awk -F'/' 'BEGIN{c=0} { if ($1!=$2) c++ } END{print c}')
             if [ "$not_ready" -eq 0 ]; then
@@ -75,6 +82,7 @@ pipeline {
             echo "Waiting... ($i/$max). Not ready: $not_ready"
             sleep "$sleep_s"
           done
+
           echo "Timeout waiting services to converge"
           exit 2
         '''
@@ -86,19 +94,32 @@ pipeline {
         sh '''
           set -e
 
-          echo "== Front check via overlay =="
+          echo "== Front check via overlay (with retries) =="
           docker run --rm --network ${OVERLAY_NET} curlimages/curl:8.11.0 \
-            -fsS http://${FRONT_SERVICE}:3000/ >/dev/null
+            --retry ${CURL_RETRIES} --retry-connrefused --retry-delay 2 \
+            --connect-timeout 2 --max-time 2 -fsS \
+            http://${FRONT_SERVICE}:3000/ >/dev/null
 
-          echo "== API TCP reachability =="
-          # У тебя на "/" 5000-й отдаёт "Cannot GET /" — ок, проверяем заголовки
+          echo "== API TCP reachability (HEAD, with retries) =="
           docker run --rm --network ${OVERLAY_NET} curlimages/curl:8.11.0 \
-            -fsSI http://${API_SERVICE}:5000/ >/dev/null || true
+            --retry ${CURL_RETRIES} --retry-connrefused --retry-delay 2 \
+            --connect-timeout 2 --max-time 2 -fsSI \
+            http://${API_SERVICE}:5000/ >/dev/null || true
 
-          echo "== DB schema check via overlay =="
+          echo "== DB readiness (pg_isready) =="
+          docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} \
+            postgres:15-alpine sh -c '
+              for i in $(seq 1 60); do
+                pg_isready -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -t 2 -q && exit 0
+                sleep 2
+              done
+              echo "DB is not ready after retries"; exit 1
+            '
+
+          echo "== DB schema quick check (\\dt) =="
           docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} \
             postgres:15-alpine \
-            psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c '\\dt'
+            psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c '\\dt' >/dev/null || true
         '''
       }
     }
@@ -108,14 +129,30 @@ pipeline {
     always {
       sh '''
         echo "== services =="
-        docker service ls
-        echo "== stack ps =="
-        docker stack ps ${SWARM_STACK_NAME} --no-trunc
+        docker service ls || true
+
+        echo "== stack services =="
+        docker stack services ${SWARM_STACK_NAME} || true
+
+        echo "== stack ps (short) =="
+        docker stack ps ${SWARM_STACK_NAME} || true
       '''
     }
-    success { echo '✅ Pipeline finished successfully' }
-    failure { echo '❌ Pipeline failed — see logs above' }
-    // workspace чистить не обязательно, но если хочешь:
-    // always { cleanWs() }
+    failure {
+      // при падении — показать последние логи контейнеров
+      sh '''
+        echo "== last 200 logs: client =="
+        docker service logs ${SWARM_STACK_NAME}_${FRONT_SERVICE} --tail 200 || true
+
+        echo "== last 200 logs: server =="
+        docker service logs ${SWARM_STACK_NAME}_${API_SERVICE} --tail 200 || true
+
+        echo "== last 200 logs: db =="
+        docker service logs ${SWARM_STACK_NAME}_${DB_SERVICE} --tail 200 || true
+      '''
+    }
+    success {
+      echo '✅ Pipeline finished successfully'
+    }
   }
 }
