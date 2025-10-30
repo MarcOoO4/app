@@ -88,7 +88,6 @@ pipeline {
         '''
       }
     }
-
     stage('Smoke tests (inside overlay)') {
       steps {
         sh '''
@@ -107,23 +106,32 @@ pipeline {
             http://${API_SERVICE}:5000/ >/dev/null || true
 
           echo "== DB readiness (pg_isready) =="
-          docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} \
-            postgres:15-alpine sh -c '
+          docker run --rm --network ${OVERLAY_NET} \
+            -e PGHOST=${DB_SERVICE} \
+            -e PGUSER=${DB_USER} \
+            -e PGPASSWORD=${DB_PASSWORD} \
+            -e PGDATABASE=${DB_NAME} \
+            -e PGPORT=5432 \
+            postgres:15-alpine sh -euxc '
               for i in $(seq 1 60); do
-                pg_isready -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -t 2 -q && exit 0
+                pg_isready -t 2 && exit 0
                 sleep 2
               done
-              echo "DB is not ready after retries"; exit 1
+              exit 1
             '
 
-          echo "== DB schema quick check (\\dt) =="
-          docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} \
+          echo "== DB quick query (SELECT 1) =="
+          docker run --rm --network ${OVERLAY_NET} \
+            -e PGHOST=${DB_SERVICE} \
+            -e PGUSER=${DB_USER} \
+            -e PGPASSWORD=${DB_PASSWORD} \
+            -e PGDATABASE=${DB_NAME} \
+            -e PGPORT=5432 \
             postgres:15-alpine \
-            psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c '\\dt' >/dev/null || true
+            psql -tAc 'select 1;' | grep -q 1
         '''
       }
     }
-  }
 
   post {
     always {
