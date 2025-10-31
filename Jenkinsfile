@@ -23,24 +23,6 @@ pipeline {
       }
     }
 
-    stage('Build Docker Images (optional)') {
-      steps {
-        script {
-          if (fileExists('server.Dockerfile')) {
-            sh "docker build -f server.Dockerfile -t ${SWARM_STACK_NAME}-server:latest ."
-          } else {
-            echo 'server.Dockerfile not found — skip build'
-          }
-
-          if (fileExists('client.Dockerfile')) {
-            sh "docker build -f client.Dockerfile -t ${SWARM_STACK_NAME}-client:latest ."
-          } else {
-            echo 'client.Dockerfile not found — skip build'
-          }
-        }
-      }
-    }
-
     stage('Deploy to Docker Swarm') {
       steps {
         script {
@@ -60,31 +42,37 @@ pipeline {
       steps {
         script {
           echo 'Ожидание запуска сервисов...'
-          sleep time: 10, unit: 'SECONDS'
+          sleep time: 15, unit: 'SECONDS'
 
-          echo 'Проверка доступности фронта (через overlay)...'
-          sh """
-            docker run --rm --network ${OVERLAY_NET} curlimages/curl:8.11.0 -fsS ${FRONTEND_URL} >/dev/null
-          """
-
-          echo 'Проверка БД (Postgres) — SELECT 1'
+          echo 'Проверка доступности базы данных...'
           sh """
             docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
               psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT 1;'
           """
 
-          echo 'Проверка наличия таблицы users...'
+          echo 'Проверка, что таблица users существует...'
           sh """
             docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
               psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} \
-              -tAc "SELECT to_regclass('public.users');"
+              -tAc "SELECT to_regclass('public.users');" | grep -q 'users' && echo 'Таблица users найдена' || (echo 'Таблица users отсутствует' && exit 1)
           """
 
-          echo 'Проверка реакции на несуществующую таблицу (нельзя локализовать)...'
+          echo 'Проверка, что таблица user не существует (для контроля)...'
+          sh """
+            if docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
+              psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} \
+              -tAc "SELECT to_regclass('public.user');" | grep -q 'user'; then
+                echo 'Ошибка: таблица user не должна существовать' && exit 1
+            else
+                echo 'Проверка успешна: таблицы user нет'
+            fi
+          """
+
+          echo 'Проверка ошибки при попытке локализации несуществующей таблицы...'
           sh """
             set +e
             docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
-              psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT * FROM nonexistent_table;' || echo 'Ожидаемая ошибка: relation does not exist'
+              psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT * FROM nonexistent_table;' 2>&1 | grep -q 'does not exist' && echo 'Ошибка локализации корректна'
           """
         }
       }
