@@ -60,17 +60,31 @@ pipeline {
       steps {
         script {
           echo 'Ожидание запуска сервисов...'
-          sleep time: 30, unit: 'SECONDS'
+          sleep time: 10, unit: 'SECONDS'
 
           echo 'Проверка доступности фронта (через overlay)...'
           sh """
             docker run --rm --network ${OVERLAY_NET} curlimages/curl:8.11.0 -fsS ${FRONTEND_URL} >/dev/null
           """
 
-          echo 'Проверка БД (Postgres) — простая команда SELECT 1 через overlay...'
+          echo 'Проверка БД (Postgres) — SELECT 1'
           sh """
             docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
               psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT 1;'
+          """
+
+          echo 'Проверка наличия таблицы users...'
+          sh """
+            docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
+              psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} \
+              -tAc "SELECT to_regclass('public.users');"
+          """
+
+          echo 'Проверка реакции на несуществующую таблицу (нельзя локализовать)...'
+          sh """
+            set +e
+            docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
+              psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT * FROM nonexistent_table;' || echo 'Ожидаемая ошибка: relation does not exist'
           """
         }
       }
@@ -79,10 +93,10 @@ pipeline {
 
   post {
     success {
-      echo 'Все этапы завершены'
+      echo 'Все этапы завершены успешно'
     }
     failure {
-      echo 'Ошибка в одном из этапов. Проверь логи выше'
+      echo 'Ошибка в одном из этапов. Проверь логи выше.'
     }
     always {
       sh '''
