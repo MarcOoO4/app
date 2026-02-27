@@ -83,3 +83,4 @@ networks:
   appnet:
     external: true
     name: app_appnet
+    attachable: true
