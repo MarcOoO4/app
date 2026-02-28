@@ -12,10 +12,15 @@ services:
       - "5432:5432"
     deploy:
       replicas: 1
+      placement:
+        constraints:
+          - node.labels.pgdata == true
       restart_policy:
         condition: any
     networks:
       - appnet
+    volumes:
+      - /mnt/pgdata:/var/lib/postgresql/seeddata
 
   server:
     image: maximka512/server
