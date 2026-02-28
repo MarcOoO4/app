@@ -13,7 +13,7 @@ pipeline {
     DB_USER          = 'root'
     DB_PASSWORD      = '1'
     DB_NAME          = 'fulfillment'
-    FRONTEND_URL     = 'http://192.168.0.1:3000'
+    FRONTEND_URL     = 'http://client:3000'
   }
 
   stages {
