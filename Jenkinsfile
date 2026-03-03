@@ -78,6 +78,29 @@ pipeline {
               -tAc "SELECT to_regclass('public.users');"
           """
 
+          echo 'Проверка списка таблиц в схеме public...'
+          sh """
+            set -e
+
+            EXPECTED_TABLES="managers orders products services users"
+
+            ACTUAL_TABLES=$(docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
+              psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} \
+              -At -c "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' ORDER BY tablename;")
+
+            ACTUAL_TABLES_LINE=$(echo "$ACTUAL_TABLES" | tr '\\n' ' ' | sed 's/  */ /g;s/ $//')
+
+            echo "Ожидаемые таблицы: $EXPECTED_TABLES"
+            echo "Фактические таблицы: $ACTUAL_TABLES_LINE"
+
+            if [ "$ACTUAL_TABLES_LINE" != "$EXPECTED_TABLES" ]; then
+              echo "ОШИБКА: список таблиц в схеме public не совпадает с ожидаемым."
+              exit 1
+            fi
+
+            echo "OK: список таблиц в схеме public совпадает с ожидаемым."
+          """
+
           echo 'Проверка реакции на несуществующую таблицу (нельзя локализовать)...'
           sh """
             set +e
