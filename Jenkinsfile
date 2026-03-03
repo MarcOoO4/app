@@ -88,7 +88,7 @@ pipeline {
               psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} \
               -At -c "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' ORDER BY tablename;")
 
-            ACTUAL_TABLES_LINE=$(echo "$ACTUAL_TABLES" | tr '\\n' ' ' | sed 's/  */ /g;s/ $//')
+            ACTUAL_TABLES_LINE=$(echo "$ACTUAL_TABLES" | tr '\\n' ' ' | xargs)
 
             echo "Ожидаемые таблицы: $EXPECTED_TABLES"
             echo "Фактические таблицы: $ACTUAL_TABLES_LINE"
