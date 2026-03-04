@@ -101,24 +101,29 @@ pipeline {
             echo "OK: список таблиц в схеме public совпадает с ожидаемым."
           '''
 
-          echo 'Проверка, что price в orders содержит только целые значения...'
+          echo 'Проверка типа поля price в таблице orders...'
           sh '''
             set -e
 
-            INVALID_COUNT=$(docker run --rm --network $OVERLAY_NET -e PGPASSWORD=$DB_PASSWORD postgres:15-alpine \
+            COLUMN_TYPE=$(docker run --rm --network $OVERLAY_NET -e PGPASSWORD=$DB_PASSWORD postgres:15-alpine \
               psql -h $DB_SERVICE -U $DB_USER -d $DB_NAME \
-              -At -c "SELECT COUNT(*) FROM orders WHERE price IS NOT NULL AND price <> floor(price);")
+              -At -c "SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'price';")
 
-            echo "Количество нецелых значений price в orders: $INVALID_COUNT"
+            echo "Тип поля orders.price: ${COLUMN_TYPE:-<not found>}"
 
-            if [ "$INVALID_COUNT" != "0" ]; then
-              echo "ОШИБКА: в таблице orders есть значения price с дробной частью."
+            if [ -z "$COLUMN_TYPE" ]; then
+              echo "ОШИБКА: колонка price в таблице orders не найдена."
               exit 1
             fi
 
-            echo "OK: все значения price в таблице orders являются целыми."
+            if [ "$COLUMN_TYPE" != "integer" ]; then
+              echo "ОШИБКА: ожидается тип integer для orders.price, но получен: $COLUMN_TYPE"
+              exit 1
+            fi
+echo "OK: колонка orders.price имеет тип integer."
           '''
-echo 'Проверка реакции на несуществующую таблицу (нельзя локализовать)...'
+
+          echo 'Проверка реакции на несуществующую таблицу (нельзя локализовать)...'
           sh """
             set +e
             docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
