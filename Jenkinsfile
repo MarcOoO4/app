@@ -118,7 +118,7 @@ pipeline {
 
             echo "OK: все значения price в таблице orders являются целыми."
           '''
-          echo 'Проверка реакции на несуществующую таблицу (нельзя локализовать)...'
+echo 'Проверка реакции на несуществующую таблицу (нельзя локализовать)...'
           sh """
             set +e
             docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
