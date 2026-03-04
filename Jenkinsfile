@@ -78,6 +78,46 @@ pipeline {
               -tAc "SELECT to_regclass('public.users');"
           """
 
+          echo 'Проверка списка таблиц в схеме public...'
+          sh '''
+            set -e
+
+            EXPECTED_TABLES="managers orders products services users"
+
+            ACTUAL_TABLES=$(docker run --rm --network $OVERLAY_NET -e PGPASSWORD=$DB_PASSWORD postgres:15-alpine \
+              psql -h $DB_SERVICE -U $DB_USER -d $DB_NAME \
+              -At -c "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' ORDER BY tablename;")
+
+            ACTUAL_TABLES_LINE=$(echo "$ACTUAL_TABLES" | tr '\n' ' ' | xargs)
+
+            echo "Ожидаемые таблицы: $EXPECTED_TABLES"
+            echo "Фактические таблицы: $ACTUAL_TABLES_LINE"
+
+            if [ "$ACTUAL_TABLES_LINE" != "$EXPECTED_TABLES" ]; then
+              echo "ОШИБКА: список таблиц в схеме public не совпадает с ожидаемым."
+              exit 1
+            fi
+
+            echo "OK: список таблиц в схеме public совпадает с ожидаемым."
+          '''
+
+          echo 'Проверка, что price в orders содержит только целые значения...'
+          sh '''
+            set -e
+
+            INVALID_COUNT=$(docker run --rm --network $OVERLAY_NET -e PGPASSWORD=$DB_PASSWORD postgres:15-alpine \
+              psql -h $DB_SERVICE -U $DB_USER -d $DB_NAME \
+              -At -c "SELECT COUNT(*) FROM orders WHERE price IS NOT NULL AND price <> floor(price);")
+
+            echo "Количество нецелых значений price в orders: $INVALID_COUNT"
+
+            if [ "$INVALID_COUNT" != "0" ]; then
+              echo "ОШИБКА: в таблице orders есть значения price с дробной частью."
+              exit 1
+            fi
+
+            echo "OK: все значения price в таблице orders являются целыми."
+          '''
           echo 'Проверка реакции на несуществующую таблицу (нельзя локализовать)...'
           sh """
             set +e
