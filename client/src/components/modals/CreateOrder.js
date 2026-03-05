@@ -45,6 +45,8 @@ const CreateOrder = observer( ({show, onHide}) => {
                 userId: isAdmin ? userId : parseInt(id),
             };
 
+            await createOrder(order);
+
             window.location.reload();// Закрыть модальное окно после успешного добавления заказа
             onHide();
         } catch (error) {
