@@ -71,6 +71,22 @@ pipeline {
           echo 'Проверка наличия таблицы users...'
           sh "docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -tAc \"SELECT to_regclass('public.users');\""
 
+          echo 'Проверка количества полей в таблице users (ожидается 14)...'
+          sh """
+            set -e
+            COLUMN_COUNT=\$(docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -At -c \"SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'users';\")
+            
+            echo \"Количество полей в таблице users: \$COLUMN_COUNT\"
+            
+            EXPECTED_COLUMNS=14
+            if [ \"\$COLUMN_COUNT\" -ne \"\$EXPECTED_COLUMNS\" ]; then
+              echo \"ERROR: ожидалось \$EXPECTED_COLUMNS полей, получено \$COLUMN_COUNT\"
+              exit 1
+            else
+              echo \"OK: таблица users имеет \$EXPECTED_COLUMNS полей\"
+            fi
+          """
+
           echo 'Проверка реакции на несуществующую таблицу...'
           sh '''
             set +e
