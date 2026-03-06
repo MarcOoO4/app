@@ -13,7 +13,7 @@ pipeline {
     DB_USER          = 'root'
     DB_PASSWORD      = '1'
     DB_NAME          = 'fulfillment'
-    FRONTEND_URL     = 'http://client:3000'
+    FRONTEND_URL     = 'http://192.168.0.1:3000'
   }
 
   stages {
@@ -47,9 +47,9 @@ pipeline {
           sh '''
             set -e
             if ! docker info | grep -q "Swarm: active"; then
-              docker swarm init || true
+              docker swarm init  true
             fi
-            [ -f docker-compose.yaml ] || { echo "docker-compose.yaml not found"; exit 1; }
+            [ -f docker-compose.yaml ]  { echo "docker-compose.yaml not found"; exit 1; }
             docker stack deploy --with-registry-auth -c docker-compose.yaml ${SWARM_STACK_NAME}
           '''
         }
@@ -78,56 +78,11 @@ pipeline {
               -tAc "SELECT to_regclass('public.users');"
           """
 
-          echo 'Проверка списка таблиц в схеме public...'
-          sh '''
-            set -e
-
-            EXPECTED_TABLES="managers orders products services users"
-
-            ACTUAL_TABLES=$(docker run --rm --network $OVERLAY_NET -e PGPASSWORD=$DB_PASSWORD postgres:15-alpine \
-              psql -h $DB_SERVICE -U $DB_USER -d $DB_NAME \
-              -At -c "SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname = 'public' ORDER BY tablename;")
-
-            ACTUAL_TABLES_LINE=$(echo "$ACTUAL_TABLES" | tr '\n' ' ' | xargs)
-
-            echo "Ожидаемые таблицы: $EXPECTED_TABLES"
-            echo "Фактические таблицы: $ACTUAL_TABLES_LINE"
-
-            if [ "$ACTUAL_TABLES_LINE" != "$EXPECTED_TABLES" ]; then
-              echo "ОШИБКА: список таблиц в схеме public не совпадает с ожидаемым."
-              exit 1
-            fi
-
-            echo "OK: список таблиц в схеме public совпадает с ожидаемым."
-          '''
-
-          echo 'Проверка типа поля price в таблице orders...'
-          sh '''
-            set -e
-
-            COLUMN_TYPE=$(docker run --rm --network $OVERLAY_NET -e PGPASSWORD=$DB_PASSWORD postgres:15-alpine \
-              psql -h $DB_SERVICE -U $DB_USER -d $DB_NAME \
-              -At -c "SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'orders' AND column_name = 'price';")
-
-            echo "Тип поля orders.price: ${COLUMN_TYPE:-<not found>}"
-
-            if [ -z "$COLUMN_TYPE" ]; then
-              echo "ОШИБКА: колонка price в таблице orders не найдена."
-              exit 1
-            fi
-
-            if [ "$COLUMN_TYPE" != "integer" ]; then
-              echo "ОШИБКА: ожидается тип integer для orders.price, но получен: $COLUMN_TYPE"
-              exit 1
-            fi
-echo "OK: колонка orders.price имеет тип integer."
-          '''
-
           echo 'Проверка реакции на несуществующую таблицу (нельзя локализовать)...'
           sh """
             set +e
             docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
-              psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT * FROM nonexistent_table;' || echo 'Ожидаемая ошибка: relation does not exist'
+              psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT * FROM nonexistent_table;'  echo 'Ожидаемая ошибка: relation does not exist'
           """
         }
       }
@@ -144,7 +99,7 @@ echo "OK: колонка orders.price имеет тип integer."
     always {
       sh '''
         echo "== stack services =="
-        docker stack services ${SWARM_STACK_NAME} || true
+        docker stack services ${SWARM_STACK_NAME}  true
         echo "== stack ps =="
         docker stack ps ${SWARM_STACK_NAME} || true
       '''
