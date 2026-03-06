@@ -13,7 +13,7 @@ pipeline {
     DB_USER          = 'root'
     DB_PASSWORD      = '1'
     DB_NAME          = 'fulfillment'
-    FRONTEND_URL     = 'http://192.168.0.1:3000'
+    FRONTEND_URL     = 'http://client:3000'
   }
 
   stages {
@@ -47,10 +47,13 @@ pipeline {
           sh '''
             set -e
             if ! docker info | grep -q "Swarm: active"; then
-              docker swarm init  true
+              docker swarm init || true
             fi
-            [ -f docker-compose.yaml ]  { echo "docker-compose.yaml not found"; exit 1; }
-            docker stack deploy --with-registry-auth -c docker-compose.yaml ${SWARM_STACK_NAME}
+            if [ ! -f docker-compose.yaml ]; then
+              echo "docker-compose.yaml not found"
+              exit 1
+            fi
+            docker stack deploy --with-registry-auth -c docker-compose.yaml app
           '''
         }
       }
@@ -59,31 +62,20 @@ pipeline {
     stage('Run Tests') {
       steps {
         script {
-
           echo 'Проверка доступности фронта (через overlay)...'
-          sh """
-            docker run --rm --network ${OVERLAY_NET} curlimages/curl:8.11.0 -fsS ${FRONTEND_URL} >/dev/null
-          """
+          sh "docker run --rm --network ${OVERLAY_NET} curlimages/curl:8.11.0 -fsS ${FRONTEND_URL} >/dev/null"
 
           echo 'Проверка БД (Postgres) — SELECT 1'
-          sh """
-            docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
-              psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT 1;'
-          """
+          sh "docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT 1;'"
 
           echo 'Проверка наличия таблицы users...'
-          sh """
-            docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
-              psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} \
-              -tAc "SELECT to_regclass('public.users');"
-          """
+          sh "docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -tAc \"SELECT to_regclass('public.users');\""
 
-          echo 'Проверка реакции на несуществующую таблицу (нельзя локализовать)...'
-          sh """
+          echo 'Проверка реакции на несуществующую таблицу...'
+          sh '''
             set +e
-            docker run --rm --network ${OVERLAY_NET} -e PGPASSWORD=${DB_PASSWORD} postgres:15-alpine \
-              psql -h ${DB_SERVICE} -U ${DB_USER} -d ${DB_NAME} -c 'SELECT * FROM nonexistent_table;'  echo 'Ожидаемая ошибка: relation does not exist'
-          """
+            docker run --rm --network ''' + OVERLAY_NET + ''' -e PGPASSWORD=''' + DB_PASSWORD + ''' postgres:15-alpine psql -h ''' + DB_SERVICE + ''' -U ''' + DB_USER + ''' -d ''' + DB_NAME + ''' -c "SELECT * FROM nonexistent_table;" || echo 'Ожидаемая ошибка: relation does not exist'
+          '''
         }
       }
     }
@@ -99,9 +91,9 @@ pipeline {
     always {
       sh '''
         echo "== stack services =="
-        docker stack services ${SWARM_STACK_NAME}  true
+        docker stack services app || true
         echo "== stack ps =="
-        docker stack ps ${SWARM_STACK_NAME} || true
+        docker stack ps app || true
       '''
       cleanWs()
     }
